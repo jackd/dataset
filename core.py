@@ -124,9 +124,6 @@ class DictDataset(DelegatingDataset):
     def items(self):
         return self._base.items()
 
-    def __len__(self):
-        return len(self._base)
-
 
 class CompoundDataset(Dataset):
     """
@@ -149,18 +146,23 @@ class CompoundDataset(Dataset):
         if not all(isinstance(d, Dataset) for d in datasets.values()):
             raise TypeError('All values of `dataset_dict` must be `Dataset`s')
         self._dataset_dict = datasets
+        self._keys = None
+
+    def _compute_keys(self):
+        datasets = self.datasets
+        keys = set(datasets[0].keys())
+        for dataset in datasets[1:]:
+            keys = keys.intersection(dataset.keys())
+        self._keys = frozenset(keys)
 
     @property
     def datasets(self):
         return tuple(self._dataset_dict.values())
 
     def keys(self):
-        datasets = self.datasets
-        keys = datasets[0].keys()
-        datasets = datasets[1:]
-        for k in keys:
-            if all(k in d for d in datasets):
-                yield k
+        if self._keys is None:
+            self._compute_keys()
+        return self._keys
 
     def __getitem__(self, key):
         return {k: v[key] for k, v in self._dataset_dict.items()}
@@ -180,6 +182,7 @@ class CompoundDataset(Dataset):
 class ZippedDataset(CompoundDataset):
     def __init__(self, *datasets):
         self._datasets = datasets
+        self._keys = None
 
     @property
     def datasets(self):
@@ -200,6 +203,9 @@ class MappedDataset(DelegatingDataset):
 
     def __getitem__(self, key):
         return self._map_fn(self._base[key])
+
+    def __len__(self):
+        return len(self._base)
 
 
 class DataSubset(DelegatingDataset):

@@ -91,6 +91,7 @@ def get_auto_saving_dataset_fn(lazy_fn, saving_fn):
         src = lazy_fn(*args, **kwargs)
         dst = saving_fn(*args, mode='a', **kwargs)
         return AutoSavingDataset(src, dst)
+
     return auto_saving_fn
 
 

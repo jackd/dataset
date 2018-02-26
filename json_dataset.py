@@ -10,31 +10,38 @@ class JsonDataset(save.SavingDataset, core.DictDataset):
         self._mode = mode
         self._base = None
 
+    @property
+    def is_open(self):
+        return self._base is not None
+
     def open(self):
         if self._mode == 'r' and not os.path.isfile(self._path):
             raise IOError(
                 'Cannot load json data: file does not exist at %s'
                 % self._path)
-        with open(self._path, 'r') as fp:
-            self._base = json.load(fp)
+        if self._mode in ('r', 'a') and os.path.isfile(self._path):
+            with open(self._path, 'r') as fp:
+                self._base = json.load(fp)
+        else:
+            self._base = {}
 
     def is_writable(self):
         return self._mode in ('a', 'w')
 
     def close(self):
-        if self.is_writeable():
+        if self.is_writable():
             with open(self._path, 'w') as fp:
                 json.dump(self._base, fp)
         self._base = None
 
     def save_item(self, key, value):
-        if self._is_writable():
+        if self.is_writable():
             self._base[key] = value
         else:
             raise IOError('Cannot write to non-writable JsonDataset')
 
     def delete_item(self, key):
-        if self._is_writable():
+        if self.is_writable():
             del self._base[key]
         else:
             raise IOError('Cannot delete from non-writable JsonDataset')
@@ -45,7 +52,7 @@ class JsonAutoSavingManager(save.AutoSavingManager):
         raise NotImplementedError('Abstract method')
 
     def get_saving_dataset(self, *args, **kwargs):
-        mode = kwargs.pop('mode', 'r')
+        mode = kwargs.pop('mode', 'a')
         path = self.get_save_path(*args, **kwargs)
         return JsonDataset(path, mode)
 
