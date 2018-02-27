@@ -253,18 +253,11 @@ class KeyMappedDataset(Dataset):
     print(key_mapped['ahoy hello'])  # 5
     ```
     """
-    def __init__(self, base_dataset, key_fn, keys=None):
-        # if keys is not None:
-        #     for key in keys:
-        #         base_key = key_fn(key)
-        #         if base_key not in base_dataset:
-        #             raise KeyError(
-        #                 'Invalid key/key_fn/dataset combination, %s -> %s' %
-        #                 (key, base_key))
-
+    def __init__(self, base_dataset, key_fn, keys=None, check_keys=True):
         self._keys = keys
         self._base = base_dataset
         self._key_fn = key_fn
+        self._check_keys = check_keys
 
     def keys(self):
         if self._keys is None:
@@ -278,10 +271,27 @@ class KeyMappedDataset(Dataset):
             return len(self._keys)
 
     def __getitem__(self, key):
-        return self._base[self._key_fn(key)]
+        try:
+            mapped_key = self._key_fn(key)
+            return self._base[mapped_key]
+        except KeyError:
+            raise KeyError('%s -> %s not in base dataset ' % (key, mapped_key))
 
     def open(self):
         self._base.open()
+        if self._check_keys:
+            if self._check_keys and self._keys is not None:
+                for key in self._keys:
+                    mapped_key = self._key_fn(key)
+                    if mapped_key not in self._base:
+                        raise KeyError('key %s -> %s not in base dataset'
+                                       % (key, mapped_key))
 
     def close(self):
         self._base.close()
+
+    def set_item(self, key, value):
+        self._base.set_item(self._key_fn(key), value)
+
+    def delete_item(self, key):
+        self._base.delete_item(self._key_fn(key))

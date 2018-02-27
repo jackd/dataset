@@ -7,6 +7,7 @@ class ZipFileDataset(core.Dataset):
         self._file = None
         self._path = path
         self._mode = mode
+        self._keys = None
 
     def open(self):
         if self._file is None:
