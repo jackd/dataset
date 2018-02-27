@@ -1,9 +1,9 @@
 import os
 import numpy as np
-import core
+import save
 
 
-class NumpyDataset(core.Dataset):
+class NumpyDataset(save.SavingDataset):
     def __init__(self, base_dir):
         self._base_dir = base_dir
 
@@ -24,7 +24,5 @@ class NumpyDataset(core.Dataset):
             raise TypeError('value must be a numpy array.')
         np.save(self._path(key), value)
 
-    def save(self, items, overwrite=False):
-        for key, value in items:
-            if overwrite or key not in self:
-                self.save_item(key, value)
+    def delete_item(self, key):
+        os.remove(self._path(key))

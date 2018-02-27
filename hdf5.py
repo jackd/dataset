@@ -11,6 +11,10 @@ class Hdf5Dataset(core.DictDataset, save.SavingDataset):
         self._base = None
 
     @property
+    def path(self):
+        return self._path
+
+    @property
     def is_open(self):
         return self._base is not None
 

@@ -41,7 +41,13 @@ class SavingDataset(core.Dataset):
     def save_items(self, items, overwrite=False, show_progress=True):
         if not self.is_open:
             raise IOError('Cannot save to non-open dataset.')
-        bar = IncrementalBar(max=len(items)) if show_progress else DummyBar()
+        if show_progress:
+            if hasattr(items, '__len__'):
+                bar = IncrementalBar(max=len(items))
+            else:
+                bar = IncrementalBar()
+        else:
+            bar = DummyBar()
         for key, value in items:
             bar.next()
             if key in self:
