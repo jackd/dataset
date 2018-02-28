@@ -23,6 +23,9 @@ class Hdf5Dataset(core.DictDataset, save.SavingDataset):
             raise IOError('Hdf5Dataset already open.')
         self._base = h5py.File(self._path, self._mode)
 
+    def is_writable(self):
+        return self._mode in ('a', 'w')
+
     def close(self):
         if self._base is not None:
             self._base.close()

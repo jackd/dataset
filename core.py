@@ -1,3 +1,7 @@
+import errors
+import sets
+
+
 class Dataset(object):
     """
     Abstract base class for dict-like interface with convenient wrapping fns.
@@ -51,8 +55,8 @@ class Dataset(object):
     def to_dict(self):
         return {k: v for k, v in self.items()}
 
-    def subset(self, keys):
-        return DataSubset(self, keys)
+    def subset(self, keys, check_present=True):
+        return DataSubset(self, keys, check_present=check_present)
 
     def map(self, map_fn):
         return MappedDataset(self, map_fn)
@@ -79,6 +83,9 @@ class Dataset(object):
     @staticmethod
     def from_function(key_fn, keys):
         return FunctionDataset(key_fn, keys)
+
+    def is_writable(self):
+        return False
 
 
 class DelegatingDataset(Dataset):
@@ -108,6 +115,12 @@ class DelegatingDataset(Dataset):
         if hasattr(self._base, 'close'):
             self._base.close()
 
+    def save_item(self, key, value):
+        self._base.save_item(key, value)
+
+    def delete_item(self, key, value):
+        self._base.delete_item(key, value)
+
 
 class DictDataset(DelegatingDataset):
     """Similar to DelegatingDataset, though redirects more methods."""
@@ -123,6 +136,13 @@ class DictDataset(DelegatingDataset):
 
     def items(self):
         return self._base.items()
+
+
+def key_intersection(keys_iterable):
+    s = sets.entire_set
+    for keys in keys_iterable:
+        s = s.intersection(s)
+    return s
 
 
 class CompoundDataset(Dataset):
@@ -146,14 +166,6 @@ class CompoundDataset(Dataset):
         if not all(isinstance(d, Dataset) for d in datasets.values()):
             raise TypeError('All values of `dataset_dict` must be `Dataset`s')
         self._dataset_dict = datasets
-        self._keys = None
-
-    def _compute_keys(self):
-        datasets = self.datasets
-        keys = set(datasets[0].keys())
-        for dataset in datasets[1:]:
-            keys = keys.intersection(dataset.keys())
-        self._keys = frozenset(keys)
 
     @property
     def datasets(self):
@@ -161,7 +173,7 @@ class CompoundDataset(Dataset):
 
     def keys(self):
         if self._keys is None:
-            self._compute_keys()
+            self._keys = key_intersection(d.keys() for d in self.datasets)
         return self._keys
 
     def __getitem__(self, key):
@@ -178,6 +190,16 @@ class CompoundDataset(Dataset):
         for v in self.datasets:
             v.close()
 
+    def save_item(self, key, value):
+        if not hasattr(value, 'items'):
+            raise TypeError('value must have items for CompoundDataset')
+        for value_key, dataset in self._dataset_dict.items():
+            dataset.save_item(key, value[value_key])
+
+    def delete_item(self, key):
+        for dataset in self.datasets:
+            dataset.delete_item(key)
+
 
 class ZippedDataset(CompoundDataset):
     def __init__(self, *datasets):
@@ -190,6 +212,12 @@ class ZippedDataset(CompoundDataset):
 
     def __getitem__(self, key):
         return tuple(d[key] for d in self._datasets)
+
+    def save_item(self, key, value):
+        if not hasattr(value, '__iter__'):
+            raise TypeError('value must be iterable for ZippedDataset')
+        for dataset, v in zip(self._datasets, value):
+            dataset.save_item(key, v)
 
 
 class MappedDataset(DelegatingDataset):
@@ -210,33 +238,45 @@ class MappedDataset(DelegatingDataset):
 
 class DataSubset(DelegatingDataset):
     """Dataset with keys constrained to a given subset."""
-    def __init__(self, base_dataset, keys):
-        self._keys = frozenset(k for k in keys if k in base_dataset)
+    def __init__(self, base_dataset, keys, check_present=True):
+        if check_present:
+            for key in keys:
+                if key not in base_dataset:
+                    raise KeyError('key %s not present in base' % key)
+        self._keys = frozenset(keys)
         super(DataSubset, self).__init__(base_dataset)
 
     def keys(self):
         return self._keys
 
-    def __contains__(self, key):
-        return key in self._keys
-
     def __getitem__(self, key):
         if key not in self._keys:
-            raise KeyError('key %s not valid key' % key)
+            raise errors.invalid_key_error(self, key)
         return self._base[key]
+
+    def save_item(self, key, value):
+        if key in self._keys:
+            self._base.save_item(key, value)
+        else:
+            raise errors.invalid_key_error(self, key)
+
+    def delete_item(self, key):
+        if key in self._keys:
+            self._base.delete_item(key)
+        else:
+            raise errors.invalid_key_error(self, key)
 
 
 class FunctionDataset(Dataset):
     """Dataset which wraps a function."""
-    def __init__(self, key_fn, keys):
-        self._keys = keys
+    def __init__(self, key_fn):
         self._key_fn = key_fn
 
     def keys(self):
-        return self._keys
+        raise errors.unknown_keys_error(self)
 
     def __contains__(self, key):
-        return key in self._keys
+        return True
 
     def __getitem__(self, key):
         return self._key_fn(key)
@@ -253,16 +293,12 @@ class KeyMappedDataset(Dataset):
     print(key_mapped['ahoy hello'])  # 5
     ```
     """
-    def __init__(self, base_dataset, key_fn, keys=None, check_keys=True):
-        self._keys = keys
+    def __init__(self, base_dataset, key_fn):
         self._base = base_dataset
         self._key_fn = key_fn
-        self._check_keys = check_keys
 
     def keys(self):
-        if self._keys is None:
-            raise RuntimeError('keys not supplied in constructor')
-        return self._keys
+        raise errors.unknown_keys_error(self)
 
     def __len__(self):
         if self._keys is None:
@@ -271,21 +307,14 @@ class KeyMappedDataset(Dataset):
             return len(self._keys)
 
     def __getitem__(self, key):
+        mapped_key = self._key_fn(key)
         try:
-            mapped_key = self._key_fn(key)
             return self._base[mapped_key]
         except KeyError:
             raise KeyError('%s -> %s not in base dataset ' % (key, mapped_key))
 
-    def open(self):
-        self._base.open()
-        if self._check_keys:
-            if self._check_keys and self._keys is not None:
-                for key in self._keys:
-                    mapped_key = self._key_fn(key)
-                    if mapped_key not in self._base:
-                        raise KeyError('key %s -> %s not in base dataset'
-                                       % (key, mapped_key))
+    def __contains__(self, key):
+        return self._key_fn(key) in self._base
 
     def close(self):
         self._base.close()
