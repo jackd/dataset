@@ -24,6 +24,10 @@ class Dataset(object):
     def __getitem__(self, key):
         raise NotImplementedError('Abstract method')
 
+    @property
+    def is_open(self):
+        return True
+
     def __contains__(self, key):
         return key in self.keys()
 
@@ -61,8 +65,8 @@ class Dataset(object):
     def map(self, map_fn):
         return MappedDataset(self, map_fn)
 
-    def map_keys(self, key_fn, keys=None):
-        return KeyMappedDataset(self, key_fn, keys)
+    def map_keys(self, key_fn):
+        return KeyMappedDataset(self, key_fn)
 
     @staticmethod
     def compound(**datasets):
@@ -99,7 +103,16 @@ class DelegatingDataset(Dataset):
     methods.
     """
     def __init__(self, base_dataset):
+        if base_dataset is None:
+            raise ValueError('`base_dataset` cannot be None')
         self._base = base_dataset
+
+    @property
+    def is_open(self):
+        if hasattr(self._base, 'is_open'):
+            return self._base.is_open
+        else:
+            return True
 
     def keys(self):
         return self._base.keys()
@@ -121,6 +134,9 @@ class DelegatingDataset(Dataset):
     def delete_item(self, key, value):
         self._base.delete_item(key, value)
 
+    def save_all(self, overwrite=False, show_progress=True):
+        self._base.save_all(overwrite=overwrite, show_progress=show_progress)
+
 
 class DictDataset(DelegatingDataset):
     """Similar to DelegatingDataset, though redirects more methods."""
@@ -130,6 +146,10 @@ class DictDataset(DelegatingDataset):
 
     def __iter__(self, key):
         return iter(self._base)
+
+    @property
+    def is_open(self):
+        return True
 
     def values(self):
         return self._base.values()
@@ -166,6 +186,10 @@ class CompoundDataset(Dataset):
         if not all(isinstance(d, Dataset) for d in datasets.values()):
             raise TypeError('All values of `dataset_dict` must be `Dataset`s')
         self._dataset_dict = datasets
+
+    @property
+    def is_open(self):
+        return all(d.is_open for d in self.datasets)
 
     @property
     def datasets(self):
@@ -239,12 +263,19 @@ class MappedDataset(DelegatingDataset):
 class DataSubset(DelegatingDataset):
     """Dataset with keys constrained to a given subset."""
     def __init__(self, base_dataset, keys, check_present=True):
-        if check_present:
-            for key in keys:
-                if key not in base_dataset:
-                    raise KeyError('key %s not present in base' % key)
+        if base_dataset is None:
+            raise ValueError('`base_dataset` cannot be None')
+        self._check_present = True
         self._keys = frozenset(keys)
         super(DataSubset, self).__init__(base_dataset)
+        if self.is_open:
+            self._check_keys()
+
+    def _check_keys(self):
+        if self._check_present:
+            for key in self._keys:
+                if key not in self._base:
+                    raise KeyError('key %s not present in base' % key)
 
     def keys(self):
         return self._keys
@@ -265,6 +296,10 @@ class DataSubset(DelegatingDataset):
             self._base.delete_item(key)
         else:
             raise errors.invalid_key_error(self, key)
+
+    def open(self):
+        super(DataSubset, self).open()
+        self._check_keys()
 
 
 class FunctionDataset(Dataset):
@@ -316,6 +351,9 @@ class KeyMappedDataset(Dataset):
     def __contains__(self, key):
         return self._key_fn(key) in self._base
 
+    def open(self):
+        self._base.open()
+
     def close(self):
         self._base.close()
 
@@ -324,3 +362,10 @@ class KeyMappedDataset(Dataset):
 
     def delete_item(self, key):
         self._base.delete_item(self._key_fn(key))
+
+    @property
+    def is_open(self):
+        if hasattr(self._base, 'is_open'):
+            return self._base.is_open
+        else:
+            return True

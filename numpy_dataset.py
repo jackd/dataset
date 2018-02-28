@@ -26,3 +26,7 @@ class NumpyDataset(save.SavingDataset):
 
     def delete_item(self, key):
         os.remove(self._path(key))
+
+    @property
+    def is_open(self):
+        return True

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import h5py
 import core
@@ -21,6 +22,8 @@ class Hdf5Dataset(core.DictDataset, save.SavingDataset):
     def open(self):
         if self._base is not None:
             raise IOError('Hdf5Dataset already open.')
+        if self._mode == 'r' and not os.path.isfile(self._path):
+            raise IOError('No file at %s' % self._path)
         self._base = h5py.File(self._path, self._mode)
 
     def is_writable(self):
