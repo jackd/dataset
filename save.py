@@ -29,7 +29,7 @@ class SavingDataset(core.Dataset):
             raise IOError('Cannot save to non-open dataset.')
         keys = dataset.keys()
         if not overwrite:
-            keys = [k for k in dataset if k not in self]
+            keys = [k for k in keys if k not in self]
         if len(keys) == 0:
             return
         if message is not None:
@@ -80,8 +80,8 @@ class SavingDataSubset(SavingDataset, core.DataSubset):
     def delete_item(self, key):
         self._base.delete_item(key)
 
-    def _with_new_keys(self, keys, check_keys):
-        return SavingDataSubset(self._base, keys, check_keys)
+    def _with_new_keys(self, keys, check_present):
+        return SavingDataSubset(self._base, keys, check_present)
 
 
 class AutoSavingDataset(core.Dataset):
@@ -134,9 +134,10 @@ class AutoSavingDataset(core.Dataset):
         self.src.close()
 
     def subset(self, keys, check_present=True):
-        return AutoSavingDataset(
-            self.src.subset(keys, check_present),
-            self.dst.subset(keys, False))
+        src = self.src.subset(keys, check_present)
+        # dst = self.dst.subset(keys, False)
+        dst = self.dst
+        return AutoSavingDataset(src, dst)
 
 
 def get_auto_saving_dataset_fn(lazy_fn, saving_fn):

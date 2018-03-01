@@ -259,7 +259,7 @@ class DataSubset(DelegatingDataset):
     def __init__(self, base_dataset, keys, check_present=True):
         if base_dataset is None:
             raise ValueError('`base_dataset` cannot be None')
-        self._check_present = True
+        self._check_present = check_present
         self._keys = frozenset(keys)
         super(DataSubset, self).__init__(base_dataset)
         if self.is_open:
