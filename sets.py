@@ -14,7 +14,10 @@ class _EntireSet(InfiniteSet):
         return True
 
     def intersection(self, other):
-        return other
+        if isinstance(other, (set, frozenset, InfiniteSet)):
+            return other
+        else:
+            return set(other)
 
     def union(self, other):
         return self

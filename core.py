@@ -161,7 +161,7 @@ class DictDataset(DelegatingDataset):
 def key_intersection(keys_iterable):
     s = sets.entire_set
     for keys in keys_iterable:
-        s = s.intersection(s)
+        s = s.intersection(keys)
     return s
 
 

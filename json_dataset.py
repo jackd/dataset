@@ -17,8 +17,7 @@ class JsonDataset(save.SavingDataset, core.DictDataset):
     def open(self):
         if self._mode == 'r' and not os.path.isfile(self._path):
             raise IOError(
-                'Cannot load json data: file does not exist at %s'
-                % self._path)
+                'Cannot load json data: file does not exist at %s self._path')
         if self._mode in ('r', 'a') and os.path.isfile(self._path):
             with open(self._path, 'r') as fp:
                 self._base = json.load(fp)
@@ -30,6 +29,9 @@ class JsonDataset(save.SavingDataset, core.DictDataset):
 
     def close(self):
         if self.is_writable():
+            folder = os.path.dirname(self._path)
+            if not os.path.isdir(folder):
+                os.makedirs(folder)
             with open(self._path, 'w') as fp:
                 json.dump(self._base, fp)
         self._base = None

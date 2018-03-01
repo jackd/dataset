@@ -20,17 +20,22 @@ class Hdf5Dataset(core.DictDataset, save.SavingDataset):
         return self._base is not None
 
     def open(self):
-        if self._base is not None:
+        if self.is_open:
             raise IOError('Hdf5Dataset already open.')
-        if self._mode == 'r' and not os.path.isfile(self._path):
-            raise IOError('No file at %s' % self._path)
+        if self._mode == 'r':
+            if not os.path.isfile(self._path):
+                raise IOError('No file at %s' % self._path)
+        else:
+            folder = os.path.dirname(self._path)
+            if not os.path.isdir(folder):
+                os.makedirs(folder)
         self._base = h5py.File(self._path, self._mode)
 
     def is_writable(self):
         return self._mode in ('a', 'w')
 
     def close(self):
-        if self._base is not None:
+        if self.is_open:
             self._base.close()
             self._base = None
 
