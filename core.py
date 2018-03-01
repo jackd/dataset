@@ -128,15 +128,6 @@ class DelegatingDataset(Dataset):
         if hasattr(self._base, 'close'):
             self._base.close()
 
-    def save_item(self, key, value):
-        self._base.save_item(key, value)
-
-    def delete_item(self, key, value):
-        self._base.delete_item(key, value)
-
-    def save_all(self, overwrite=False, show_progress=True):
-        self._base.save_all(overwrite=overwrite, show_progress=show_progress)
-
 
 class DictDataset(DelegatingDataset):
     """Similar to DelegatingDataset, though redirects more methods."""
@@ -259,6 +250,9 @@ class MappedDataset(DelegatingDataset):
     def __len__(self):
         return len(self._base)
 
+    def subset(self, keys, check_present=True):
+        return self._base.subset(keys, check_present).map(self._map_fn)
+
 
 class DataSubset(DelegatingDataset):
     """Dataset with keys constrained to a given subset."""
@@ -276,6 +270,17 @@ class DataSubset(DelegatingDataset):
             for key in self._keys:
                 if key not in self._base:
                     raise KeyError('key %s not present in base' % key)
+
+    def _with_new_keys(self, keys, check_present):
+        return DataSubset(self._base, keys, check_present)
+
+    def subset(self, keys, check_present=True):
+        if check_present:
+            for key in keys:
+                if key not in self._keys:
+                    raise KeyError('key %s not present in base' % key)
+
+        return self._with_new_keys(keys, check_present and not self.is_open)
 
     def keys(self):
         return self._keys

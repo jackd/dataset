@@ -63,6 +63,26 @@ class SavingDataset(core.Dataset):
             self.save_item(key, value)
         bar.finish()
 
+    def subset(self, keys, check_present=True):
+        return SavingDataSubset(self, keys, check_present)
+
+
+class SavingDataSubset(SavingDataset, core.DataSubset):
+    def __init__(self, base_dataset, keys, check_present=True):
+        if not isinstance(base_dataset, SavingDataset):
+            raise TypeError('base_dataset must be a SavingDataset')
+        core.DataSubset.__init__(
+            self, base_dataset, keys, check_present=check_present)
+
+    def save_item(self, key, value):
+        self._base.save_item(key, value)
+
+    def delete_item(self, key):
+        self._base.delete_item(key)
+
+    def _with_new_keys(self, keys, check_keys):
+        return SavingDataSubset(self._base, keys, check_keys)
+
 
 class AutoSavingDataset(core.Dataset):
     def __init__(self, src, dst):
@@ -112,6 +132,11 @@ class AutoSavingDataset(core.Dataset):
     def close(self):
         self.dst.close()
         self.src.close()
+
+    def subset(self, keys, check_present=True):
+        return AutoSavingDataset(
+            self.src.subset(keys, check_present),
+            self.dst.subset(keys, False))
 
 
 def get_auto_saving_dataset_fn(lazy_fn, saving_fn):
