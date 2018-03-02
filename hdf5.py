@@ -78,10 +78,19 @@ class Hdf5Dataset(core.DictDataset, save.SavingDataset):
 
 
 class Hdf5AutoSavingManager(save.AutoSavingManager):
-    def get_save_path(self, *args, **kwargs):
-        raise NotImplementedError('Abstract method')
+    def __init__(self, path, saving_message=None):
+        self._path = path
+        if saving_message is None:
+            saving_message = 'Creating data for %s' % path
+        self._saving_message = saving_message
 
-    def get_saving_dataset(self, *args, **kwargs):
-        mode = kwargs.pop('mode', 'r')
-        path = self.get_save_path(*args, **kwargs)
-        return Hdf5Dataset(path, mode)
+    @property
+    def saving_message(self):
+        return self._saving_message
+
+    @property
+    def path(self):
+        return self._path
+
+    def get_saving_dataset(self, mode='a'):
+        return Hdf5Dataset(self.path, mode)

@@ -34,7 +34,7 @@ class SavingDataset(core.Dataset):
             return
         if message is not None:
             print(message)
-        bar = IncrementalBar(max=len(dataset)) if show_progress else DummyBar()
+        bar = IncrementalBar(max=len(keys)) if show_progress else DummyBar()
         for key in keys:
             bar.next()
             if key in self:
@@ -150,23 +150,47 @@ def get_auto_saving_dataset_fn(lazy_fn, saving_fn):
 
 
 class AutoSavingManager(object):
-
-    def get_lazy_dataset(self, *args, **kwargs):
+    def get_lazy_dataset(self):
         raise NotImplementedError('Abstract method')
 
-    def get_saving_dataset(self, *args, **kwargs):
+    def get_saving_dataset(self, mode='r'):
         raise NotImplementedError('Abstract method')
 
-    def get_auto_saving_dataset(self, *args, **kwargs):
-        mode = kwargs.pop('mode', 'a')
-        src = self.get_lazy_dataset(*args, **kwargs)
-        kwargs['mode'] = mode
-        dst = self.get_saving_dataset(*args, **kwargs)
-        return AutoSavingDataset(src, dst)
+    def get_auto_saving_dataset(self, mode='a'):
+        return AutoSavingDataset(
+            self.get_lazy_dataset(),
+            self.get_saving_dataset(mode))
 
-    def save_all(self, *args, **kwargs):
-        overwrite = kwargs.pop('overwrite', False)
-        kwargs['mode'] = 'a'
-        message = kwargs.pop('message', None)
-        with self.get_auto_saving_dataset(*args, **kwargs) as ds:
-            ds.save_all(overwrite=overwrite, message=message)
+    @property
+    def saving_message(self):
+        return None
+
+    def save_all(self, overwrite=False):
+        with self.get_auto_saving_dataset('a') as ds:
+            ds.save_all(overwrite=overwrite, message=self.saving_message)
+
+    def get_saved_dataset(self):
+        self.save_all()
+        return self.get_saving_dataset(mode='r')
+
+# class AutoSavingManager(object):
+#
+#     def get_lazy_dataset(self, *args, **kwargs):
+#         raise NotImplementedError('Abstract method')
+#
+#     def get_saving_dataset(self, *args, **kwargs):
+#         raise NotImplementedError('Abstract method')
+#
+#     def get_auto_saving_dataset(self, *args, **kwargs):
+#         mode = kwargs.pop('mode', 'a')
+#         src = self.get_lazy_dataset(*args, **kwargs)
+#         kwargs['mode'] = mode
+#         dst = self.get_saving_dataset(*args, **kwargs)
+#         return AutoSavingDataset(src, dst)
+#
+#     def save_all(self, *args, **kwargs):
+#         overwrite = kwargs.pop('overwrite', False)
+#         kwargs['mode'] = 'a'
+#         message = kwargs.pop('message', None)
+#         with self.get_auto_saving_dataset(*args, **kwargs) as ds:
+#             ds.save_all(overwrite=overwrite, message=message)

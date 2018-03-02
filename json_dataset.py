@@ -50,28 +50,19 @@ class JsonDataset(save.SavingDataset, core.DictDataset):
 
 
 class JsonAutoSavingManager(save.AutoSavingManager):
-    def get_save_path(self, *args, **kwargs):
-        raise NotImplementedError('Abstract method')
+    def __init__(self, path, saving_message=None):
+        self._path = path
+        if saving_message is None:
+            saving_message = 'Creating data for %s' % path
+        self._saving_message = saving_message
 
-    def get_saving_dataset(self, *args, **kwargs):
-        mode = kwargs.pop('mode', 'a')
-        path = self.get_save_path(*args, **kwargs)
-        return JsonDataset(path, mode)
+    @property
+    def saving_message(self):
+        return self._saving_message
 
-# def load_json_dataset(path):
-#     if not os.path.isfile(path):
-#         raise IOError(
-#             'Cannot load json data: file does not exist at %s' % path)
-#     with open(path, 'r') as fp:
-#         d = json.load(fp)
-#     return core.DictDataset(d)
-#
-#
-# def save_json_dataset(path, dataset):
-#     try:
-#         with open(path, 'w') as fp:
-#             json.dump(dataset.to_dict(), fp)
-#     except Exception:
-#         if os.path.isfile(path):
-#             os.remove(path)
-#         raise
+    @property
+    def path(self):
+        return self._path
+
+    def get_saving_dataset(self, mode='a'):
+        return JsonDataset(self.path, mode)
