@@ -22,7 +22,9 @@ class ZipFileDataset(core.Dataset):
     def keys(self):
         if not self.open:
             raise RuntimeError('Cannot check keys of closed dataset.')
-        return frozenset(self._file.namelist())
+        if self._keys is None:
+            self._keys = frozenset(self._file.namelist())
+        return self._keys
 
     def __getitem__(self, key):
         return self._file.open(key)
