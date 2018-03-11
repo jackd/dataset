@@ -1,3 +1,4 @@
+import itertools
 import errors
 import sets
 
@@ -374,3 +375,54 @@ class KeyMappedDataset(Dataset):
             return self._base.is_open
         else:
             return True
+
+
+class BiKeyDataset(Dataset):
+    def __init__(self, **datasets):
+        self._datasets = datasets
+
+    def __getitem__(self, key):
+        k0, k1 = key
+        try:
+            dataset = self._datasets[k0]
+        except KeyError:
+            raise KeyError('No dataset at first key %s' % k0)
+        try:
+            return dataset[k1]
+        except KeyError:
+            raise KeyError('No entry in sub-dataset, %s' % str(key))
+
+    def __contains__(self, key):
+        k0, k1 = key
+        return k0 in self._datasets and k1 in self._datasets[k0]
+
+    def keys(self):
+        for k, dataset in self._datasets.items():
+            for k1 in dataset:
+                yield (k, k1)
+        # return itertools.chain(*(
+        #     (k0, k1) for k1 in dataset)
+        #     for k0, dataset in self._datasets.items())
+
+    def open(self):
+        for dataset in self._datasets.values():
+            dataset.open()
+
+    def close(self):
+        for dataset in self._datasets.values():
+            dataset.close()
+
+    @property
+    def is_open(self):
+        return all(d.is_open for d in self._datasets.values())
+
+    def values(self):
+        return itertools.chain(*(d.values() for d in self._datasets.values()))
+
+    def __len__(self):
+        return sum(len(d) for d in self._datasets.values())
+
+    def items(self):
+        for k0, dataset in self._datasets.items():
+            for k1, v in dataset.items():
+                yield (k0, k1), v

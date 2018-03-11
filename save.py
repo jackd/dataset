@@ -157,6 +157,9 @@ class AutoSavingManager(object):
         raise NotImplementedError('Abstract method')
 
     def get_auto_saving_dataset(self, mode='a'):
+        # lazy = self.get_lazy_dataset()
+        # active = self.get_saving_dataset(mode)
+        # exit()
         return AutoSavingDataset(
             self.get_lazy_dataset(),
             self.get_saving_dataset(mode))
